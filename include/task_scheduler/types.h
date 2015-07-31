@@ -23,6 +23,8 @@ struct DataChannelId
 
 };
 
+typedef unsigned long Time; // Time in nanoseconds
+
 class Process;
 class Blackboard;
 

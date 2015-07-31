@@ -10,7 +10,7 @@ class SourceProcess : public ts::Process
 
 public:
 
-    SourceProcess(const std::string& out_name) : Process("source"), out_name_(out_name) {}
+    SourceProcess(const std::string& out_name, double sleep_sec) : Process("source " + out_name), out_name_(out_name), sleep_sec_(sleep_sec) {}
 
     void initialize()
     {
@@ -21,8 +21,9 @@ public:
     void process()
     {
         std::cout << "[" << name() << "] Writing " << counter_ << std::endl;
-        out_.write(counter_++);
-        usleep(1000000);
+        out_.write(counter_, (ts::Time)counter_);
+        ++counter_;
+        usleep(sleep_sec_ * 1000000);
     }
 
 private:
@@ -31,10 +32,49 @@ private:
 
     std::string out_name_;
 
+    double sleep_sec_;
+
     ts::OutputPort out_;
 
 };
 
+// ----------------------------------------------------------------------------------------------------
+
+class SumProcess : public ts::Process
+{
+
+public:
+
+    SumProcess(const std::string& in1_name, const std::string& in2_name, const std::string& out_name)
+        : Process("sum " + in1_name + "+" + in2_name), in1_name_(in1_name), in2_name_(in2_name),out_name_(out_name) {}
+
+    void initialize()
+    {
+        RegisterInput(in1_name_, in1_, true);
+        RegisterInput(in2_name_, in2_, true);
+        RegisterOutput(out_name_, out_);
+    }
+
+    void process()
+    {
+        double v1, v2;
+        ts::Time t1, t2;
+        if (in1_.read(v1, t2) && in2_.read(v2, t2))
+        {
+            std::cout << "[" << name() << "] Read " << v1 << " and " << v2 << std::endl;
+            out_.write(v1 + v2, t1);
+        }
+    }
+
+private:
+
+    std::string in1_name_, in2_name_, out_name_;
+
+    ts::InputPort in1_, in2_;
+
+    ts::OutputPort out_;
+
+};
 
 // ----------------------------------------------------------------------------------------------------
 
@@ -44,7 +84,7 @@ class SimpleProcess : public ts::Process
 public:
 
     SimpleProcess(const std::string& in_name, const std::string& out_name)
-        : Process("process_" + in_name), in_name_(in_name), out_name_(out_name) {}
+        : Process("process " + in_name), in_name_(in_name), out_name_(out_name) {}
 
     void initialize()
     {
@@ -55,10 +95,11 @@ public:
     void process()
     {
         double value;
-        if (in_.read(value))
+        ts::Time timestamp;
+        if (in_.read(value, timestamp))
         {
             std::cout << "[" << name() << "] Read " << value << std::endl;
-            out_.write(value);
+            out_.write(value, timestamp);
         }
     }
 
@@ -79,15 +120,20 @@ int main(int argc, char **argv)
     std::cout << "Starting main" << std::endl;
 
     ts::Scheduler scheduler;
-    scheduler.AddProcess(new SourceProcess("a"));
-    scheduler.AddProcess(new SimpleProcess("a", "b"));
+    scheduler.AddProcess(new SourceProcess("s1", 3));
+    scheduler.AddProcess(new SourceProcess("s2", 0.5));
+    scheduler.AddProcess(new SourceProcess("s3", 1));
+    scheduler.AddProcess(new SumProcess("s1", "s2", "a"));
+    scheduler.AddProcess(new SumProcess("a", "s3", "b"));
     scheduler.AddProcess(new SimpleProcess("b", "c"));
+
+
 
 //    std::cout << "Starting system..." << std::endl;
 
     scheduler.Run();
 
-    usleep(10000000);
+    usleep(20000000);
 
 //    scheduler.blackboard().PrintContent();
 

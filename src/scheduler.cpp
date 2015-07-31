@@ -32,10 +32,6 @@ void Scheduler::Run()
     for(Process* p : processes_)
     {
         p->initialize();
-
-        // Register trigger inputs for this process
-        for(const DataChannelId& c : p->trigger_inputs())
-            triggers_[c] = p;
     }
 
     for(Process* p : processes_)

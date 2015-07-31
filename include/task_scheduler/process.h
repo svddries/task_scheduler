@@ -22,26 +22,24 @@ class InputPort
 
 public:
 
-    InputPort() : blackboard_(0) {}
+    InputPort() : channel_(0) {}
 
-    InputPort(Blackboard* bb, const DataChannelId& channel_id) : blackboard_(bb), channel_id_(channel_id) {}
+    InputPort(DataChannel* channel) : channel_(channel) {}
 
-    bool read(double& v)
+    bool read(double& v, Time& timestamp)
     {
-        if (!blackboard_)
+        if (!channel_)
         {
 //            std::cout << "Input port was not initialized" << std::endl;
             return false;
         }
 
-        return blackboard_->channel(channel_id_).read(v);
+        return channel_->read(v, timestamp);
     }
 
 private:
 
-    Blackboard* blackboard_;
-
-    DataChannelId channel_id_;
+    DataChannel* channel_;
 
 };
 
@@ -52,26 +50,24 @@ class OutputPort
 
 public:
 
-    OutputPort() : blackboard_(0) {}
+    OutputPort() : channel_(0) {}
 
-    OutputPort(Blackboard* bb, const DataChannelId& channel_id) : blackboard_(bb), channel_id_(channel_id) {}
+    OutputPort(DataChannel* channel) : channel_(channel) {}
 
-    void write(const double& v)
+    void write(const double& v, const Time& timestamp)
     {
-        if (!blackboard_)
+        if (!channel_)
         {
 //            std::cout << "Output port was not initialized" << std::endl;
             return;
         }
 
-        return blackboard_->channel(channel_id_).write(v);
+        return channel_->write(v, timestamp);
     }
 
 private:
 
-    Blackboard* blackboard_;
-
-    DataChannelId channel_id_;
+    DataChannel* channel_;
 };
 
 // ----------------------------------------------------------------------------------------------------
@@ -102,9 +98,12 @@ public:
         inputs_.insert(id);
 
         if (is_trigger)
-            trigger_inputs_.insert(id);
+        {
+            trigger_channels_.push_back(&blackboard_->channel(id));
+            trigger_channel_stamps_.push_back(0);
+        }
 
-        port = InputPort(blackboard_, id);
+        port = InputPort(&blackboard_->channel(id));
     }
 
     void RegisterOutput(const std::string& name, OutputPort& port)
@@ -112,15 +111,13 @@ public:
         DataChannelId id = blackboard_->RegisterChannel(name);
         inputs_.insert(id);
 
-        port = OutputPort(blackboard_, id);
+        port = OutputPort(&blackboard_->channel(id));
     }
 
     void setBlackboard(Blackboard* blackboard)
     {
         blackboard_ = blackboard;
     }
-
-    const std::set<DataChannelId>& trigger_inputs() const { return trigger_inputs_; }
 
     const std::set<DataChannelId>& inputs() const { return inputs_; }
 
@@ -134,7 +131,8 @@ private:
 
     Blackboard* blackboard_;
 
-    std::set<DataChannelId> trigger_inputs_;
+    std::vector<DataChannel*> trigger_channels_;
+    std::vector<Time> trigger_channel_stamps_;
 
     std::set<DataChannelId> inputs_;
 

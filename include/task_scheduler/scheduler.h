@@ -30,8 +30,6 @@ private:
 
     std::vector<Process*> processes_;
 
-    std::map<DataChannelId, Process*> triggers_;
-
 };
 
 } // end namespace ts

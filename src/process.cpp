@@ -40,13 +40,27 @@ void Process::runImpl()
     running_ = true;
     while(running_)
     {
-        if (!trigger_inputs_.empty())
+        for(unsigned int i = 0; i < trigger_channels_.size(); ++i)
         {
-            const DataChannelId& id = *trigger_inputs_.begin();
-            DataChannel& c = blackboard_->channel(id);
+            DataChannel* c = trigger_channels_[i];
+            Time t_last_val_ = c->latestTimestamp();
 
-            std::unique_lock<std::mutex> lk(c.mutex());
-            c.condition_variable().wait(lk);
+            if (t_last_val_ <= trigger_channel_stamps_[i])
+            {
+                // A new value is not yet available, so wait
+                std::unique_lock<std::mutex> lk(c->mutex());
+                c->condition_variable().wait(lk);
+
+                trigger_channel_stamps_[i] = c->latestTimestamp();
+            }
+            else
+            {
+                trigger_channel_stamps_[i] = t_last_val_;
+            }
+
+            if (!running_)
+                break;
+
         }
 
         if (!running_)
