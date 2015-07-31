@@ -67,13 +67,13 @@ void Process::runImpl()
                     break;
             }
 
-            std::cout << name() << ": " << std::endl;
+//            std::cout << name() << ": " << std::endl;
 
             // Now make sure all input channels are up-to-date
             for(auto& id : inputs_)
             {
                 DataChannel& c = blackboard_->channel(id);
-                c.waitUntilUpToDate(t_data);
+                c.waitUntilUpToDate(t_data, name());
             }
         }
 

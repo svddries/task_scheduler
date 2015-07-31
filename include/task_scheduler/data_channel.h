@@ -14,12 +14,44 @@ namespace ts
 
 // ----------------------------------------------------------------------------------------------------
 
+struct SourceStats
+{
+    SourceStats() : initialized(false), max_msg_delay(Duration::zero()) {}
+
+    bool initialized;
+    Time t_last_data;
+    Duration max_msg_delay;
+    Duration msg_intervals;
+
+    void update(const Time& t_data, const Time& t_arrival)
+    {
+        if (initialized)
+            msg_intervals = t_data - t_last_data;
+        else
+            initialized = true;
+
+        max_msg_delay = std::max(max_msg_delay, t_arrival - t_data);
+        t_last_data = t_data;
+    }
+
+    bool expectedNextUpdate(Time& t_data, Time& t_arrival) const
+    {
+        if (!initialized)
+            return false;
+
+        t_data = t_last_data + msg_intervals;
+        t_arrival = t_data + max_msg_delay;
+    }
+};
+
+// ----------------------------------------------------------------------------------------------------
+
 class DataChannel
 {
 
 public:
 
-    DataChannel() : max_msg_delay_(Duration::zero()) {}
+    DataChannel() {}
 
     ~DataChannel() {}
 
@@ -37,21 +69,13 @@ public:
     {
         Time now = std::chrono::system_clock::now();
 
-        if (!values_.empty())
+        SourceStats& stats = source_stats_[source];
+        stats.update(timestamp, now);
+
+        if (timestamp < t_latest_data_)
         {
-            Duration msg_delay = now - timestamp;
-
-            std::cout << "From " << source << ": Message delay: " << PrintDuration(msg_delay) << std::endl;
-
-            max_msg_delay_ = std::max(max_msg_delay_, msg_delay);
-
-            std::cout << "   Max message delay: " << PrintDuration(max_msg_delay_) << std::endl;
-
-            if (timestamp < t_latest_data_)
-            {
-                std::cout << "Received earlier stamp! " << PrintDuration(t_latest_data_ - timestamp) << " too old" << std::endl;
-                return;
-            }
+            std::cout << "From [" << source << "] Received earlier stamp! " << PrintDuration(t_latest_data_ - timestamp) << " too old" << std::endl;
+            return;
         }
 
         values_.clear();
@@ -62,36 +86,37 @@ public:
         cv_.notify_all();
     }
 
-    // Returns true if this channel does not expect to receive any updates
-    // that will change it's state BEFORE 'time'. In other words: if this returns
-    // true, the reader can be assured that it is using data that will not change
-    // in the future for the specified point in time.
-    bool is_up_to_date(const Time& time) const
+    void waitUntilUpToDate(const Time& time, const std::string& source) const
     {
-        Time now = std::chrono::system_clock::now();
-        Duration delay = now - time;
-        return delay > max_msg_delay_;
-    }
-
-    void waitUntilUpToDate(const Time& time) const
-    {
-        Time now = std::chrono::system_clock::now();
-        Duration delay = now - time;
-        if (delay > max_msg_delay_)
-        {
-            std::cout << "Don't need to wait" << std::endl;
+        if (source_stats_.size() <= 1)
             return;
+
+        for(auto it : source_stats_)
+        {
+            if (it.first == source)
+                continue;
+
+            const SourceStats& stats = it.second;
+
+            Time t_data, t_arrival;
+            stats.expectedNextUpdate(t_data, t_arrival);
+
+            if (t_data > time)
+                continue;
+
+//            std::cout << "    " << source << ": " << it.first << ": " << PrintDuration(time - t_data) << std::endl;
+
+            Time now = std::chrono::system_clock::now();
+            if (t_arrival < now)
+                continue;
+
+            Duration wait_time = t_arrival - now;
+
+            wait_time *= 1.1; // Add some slack
+
+            unsigned long wait_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(wait_time).count();
+            boost::this_thread::sleep_for(boost::chrono::nanoseconds(wait_time_ns));
         }
-
-
-        Duration wait_time = max_msg_delay_ - delay;
-        wait_time *= 1.1;
-
-        std::cout << "Need to wait for " << PrintDuration(wait_time) << std::endl;
-
-        unsigned long wait_time_ns = std::chrono::duration_cast<std::chrono::nanoseconds>(wait_time).count();
-
-        boost::this_thread::sleep_for(boost::chrono::nanoseconds(wait_time_ns));
     }
 
     Time latestTimestamp() const { return t_latest_data_; }
@@ -103,7 +128,7 @@ private:
 
     Time t_latest_data_;
 
-    Duration max_msg_delay_;
+    std::map<std::string, SourceStats> source_stats_;
 
     std::vector<double> values_;
 

@@ -21,7 +21,7 @@ public:
     void process()
     {
         usleep(sleep_sec_ * 1000000);
-        std::cout << "[" << name() << "] Writing " << counter_ << std::endl;
+//        std::cout << "[" << name() << "] Writing " << counter_ << std::endl;
 
         ts::Time now = std::chrono::system_clock::now();
         out_.write(counter_, now);
@@ -67,7 +67,7 @@ public:
                 v2 = 0;
 
             std::cout << "[" << name() << "] Read " << v1 << " and " << v2 << std::endl;
-            usleep(sleep_sec_ * 10000000);
+            usleep(sleep_sec_ * 1000000);
             std::cout << "[" << name() << "] Writing " << v1 + v2 << std::endl;
             out_.write(v1 + v2, t1);
         }
@@ -92,8 +92,8 @@ class SimpleProcess : public ts::Process
 
 public:
 
-    SimpleProcess(const std::string& in_name, const std::string& out_name)
-        : Process("process " + in_name), in_name_(in_name), out_name_(out_name) {}
+    SimpleProcess(const std::string& in_name, const std::string& out_name, double sleep_sec)
+        : Process("process " + in_name), in_name_(in_name), out_name_(out_name), sleep_sec_(sleep_sec) {}
 
     void initialize()
     {
@@ -108,6 +108,8 @@ public:
         if (in_.read(value, timestamp))
         {
             std::cout << "[" << name() << "] Read " << value << std::endl;
+            usleep(sleep_sec_ * 1000000);
+            std::cout << "[" << name() << "] Wrote " << value << std::endl;
             out_.write(value, timestamp);
         }
     }
@@ -115,6 +117,8 @@ public:
 private:
 
     std::string in_name_, out_name_;
+
+    double sleep_sec_;
 
     ts::InputPort in_;
 
@@ -130,15 +134,11 @@ int main(int argc, char **argv)
 
     ts::Scheduler scheduler;
 
-
-
-
-
-
-    scheduler.AddProcess(new SourceProcess("kinect1", 0.5));
-//    scheduler.AddProcess(new SourceProcess("kinect2", 0.5));
-    scheduler.AddProcess(new SumProcess("kinect1", "wm", "wm", 0.1));
-//    scheduler.AddProcess(new SimpleProcess("kinect2", "wm"));
+    scheduler.AddProcess(new SourceProcess("kinect1", 0.11));
+    scheduler.AddProcess(new SourceProcess("kinect2", 0.1));
+    scheduler.AddProcess(new SumProcess("kinect1", "wm", "wm", 0.09));
+    scheduler.AddProcess(new SumProcess("kinect2", "wm", "wm", 0.09));
+//    scheduler.AddProcess(new SimpleProcess("kinect2", "wm", 0.05));
 
 
 

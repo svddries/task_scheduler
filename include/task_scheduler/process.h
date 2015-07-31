@@ -113,7 +113,7 @@ public:
         DataChannelId id = blackboard_->RegisterChannel(name);
         outputs_.insert(id);
 
-        port = OutputPort(&blackboard_->channel(id), name);
+        port = OutputPort(&blackboard_->channel(id), name_);
     }
 
     void setBlackboard(Blackboard* blackboard)
