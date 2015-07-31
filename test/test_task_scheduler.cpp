@@ -20,10 +20,12 @@ public:
 
     void process()
     {
-        std::cout << "[" << name() << "] Writing " << counter_ << std::endl;
-        out_.write(counter_, (ts::Time)counter_);
-        ++counter_;
         usleep(sleep_sec_ * 1000000);
+        std::cout << "[" << name() << "] Writing " << counter_ << std::endl;
+
+        ts::Time now = std::chrono::system_clock::now();
+        out_.write(counter_, now);
+        counter_ += 1;
     }
 
 private:
@@ -45,13 +47,13 @@ class SumProcess : public ts::Process
 
 public:
 
-    SumProcess(const std::string& in1_name, const std::string& in2_name, const std::string& out_name)
-        : Process("sum " + in1_name + "+" + in2_name), in1_name_(in1_name), in2_name_(in2_name),out_name_(out_name) {}
+    SumProcess(const std::string& in1_name, const std::string& in2_name, const std::string& out_name, double sleep_sec)
+        : Process("sum " + in1_name + "+" + in2_name), in1_name_(in1_name), in2_name_(in2_name),out_name_(out_name), sleep_sec_(sleep_sec) {}
 
     void initialize()
     {
         RegisterInput(in1_name_, in1_, true);
-        RegisterInput(in2_name_, in2_, true);
+        RegisterInput(in2_name_, in2_, false);
         RegisterOutput(out_name_, out_);
     }
 
@@ -59,14 +61,21 @@ public:
     {
         double v1, v2;
         ts::Time t1, t2;
-        if (in1_.read(v1, t2) && in2_.read(v2, t2))
+        if (in1_.read(v1, t1))
         {
+            if (!in2_.read(v2, t2))
+                v2 = 0;
+
             std::cout << "[" << name() << "] Read " << v1 << " and " << v2 << std::endl;
+            usleep(sleep_sec_ * 10000000);
+            std::cout << "[" << name() << "] Writing " << v1 + v2 << std::endl;
             out_.write(v1 + v2, t1);
         }
     }
 
 private:
+
+    double sleep_sec_;
 
     std::string in1_name_, in2_name_, out_name_;
 
@@ -120,12 +129,16 @@ int main(int argc, char **argv)
     std::cout << "Starting main" << std::endl;
 
     ts::Scheduler scheduler;
-    scheduler.AddProcess(new SourceProcess("s1", 3));
-    scheduler.AddProcess(new SourceProcess("s2", 0.5));
-    scheduler.AddProcess(new SourceProcess("s3", 1));
-    scheduler.AddProcess(new SumProcess("s1", "s2", "a"));
-    scheduler.AddProcess(new SumProcess("a", "s3", "b"));
-    scheduler.AddProcess(new SimpleProcess("b", "c"));
+
+
+
+
+
+
+    scheduler.AddProcess(new SourceProcess("kinect1", 0.5));
+//    scheduler.AddProcess(new SourceProcess("kinect2", 0.5));
+    scheduler.AddProcess(new SumProcess("kinect1", "wm", "wm", 0.1));
+//    scheduler.AddProcess(new SimpleProcess("kinect2", "wm"));
 
 
 

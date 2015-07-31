@@ -52,7 +52,7 @@ public:
 
     OutputPort() : channel_(0) {}
 
-    OutputPort(DataChannel* channel) : channel_(channel) {}
+    OutputPort(DataChannel* channel, const std::string& process_name) : channel_(channel), process_name_(process_name) {}
 
     void write(const double& v, const Time& timestamp)
     {
@@ -62,12 +62,14 @@ public:
             return;
         }
 
-        return channel_->write(v, timestamp);
+        return channel_->write(v, timestamp, process_name_);
     }
 
 private:
 
     DataChannel* channel_;
+
+    std::string process_name_;
 };
 
 // ----------------------------------------------------------------------------------------------------
@@ -100,7 +102,7 @@ public:
         if (is_trigger)
         {
             trigger_channels_.push_back(&blackboard_->channel(id));
-            trigger_channel_stamps_.push_back(0);
+            trigger_channel_stamps_.push_back(Time());
         }
 
         port = InputPort(&blackboard_->channel(id));
@@ -109,9 +111,9 @@ public:
     void RegisterOutput(const std::string& name, OutputPort& port)
     {
         DataChannelId id = blackboard_->RegisterChannel(name);
-        inputs_.insert(id);
+        outputs_.insert(id);
 
-        port = OutputPort(&blackboard_->channel(id));
+        port = OutputPort(&blackboard_->channel(id), name);
     }
 
     void setBlackboard(Blackboard* blackboard)

@@ -40,27 +40,41 @@ void Process::runImpl()
     running_ = true;
     while(running_)
     {
-        for(unsigned int i = 0; i < trigger_channels_.size(); ++i)
+        if (!trigger_channels_.empty())
         {
-            DataChannel* c = trigger_channels_[i];
-            Time t_last_val_ = c->latestTimestamp();
-
-            if (t_last_val_ <= trigger_channel_stamps_[i])
+            Time t_data;
+            for(unsigned int i = 0; i < trigger_channels_.size(); ++i)
             {
-                // A new value is not yet available, so wait
-                std::unique_lock<std::mutex> lk(c->mutex());
-                c->condition_variable().wait(lk);
+                DataChannel* c = trigger_channels_[i];
+                Time t_last_val_ = c->latestTimestamp();
 
-                trigger_channel_stamps_[i] = c->latestTimestamp();
+                if (t_last_val_ <= trigger_channel_stamps_[i])
+                {
+                    // A new value is not yet available, so wait
+                    std::unique_lock<std::mutex> lk(c->mutex());
+                    c->condition_variable().wait(lk);
+
+                    trigger_channel_stamps_[i] = c->latestTimestamp();
+                }
+                else
+                {
+                    trigger_channel_stamps_[i] = t_last_val_;
+                }
+
+                t_data = std::max(t_data, trigger_channel_stamps_[i]);
+
+                if (!running_)
+                    break;
             }
-            else
+
+            std::cout << name() << ": " << std::endl;
+
+            // Now make sure all input channels are up-to-date
+            for(auto& id : inputs_)
             {
-                trigger_channel_stamps_[i] = t_last_val_;
+                DataChannel& c = blackboard_->channel(id);
+                c.waitUntilUpToDate(t_data);
             }
-
-            if (!running_)
-                break;
-
         }
 
         if (!running_)
